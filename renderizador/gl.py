@@ -63,7 +63,7 @@ class GL:
         emissiveColor = [int(255 * c) for c in colors["emissiveColor"]]
 
         # Bresenham's algorithm with error correction
-        for i in range(0, len(lineSegments), 4):
+        for i in range(0, len(lineSegments) - 2, 2):
             uStart = int(lineSegments[i + 0])
             vStart = int(lineSegments[i + 1])
             uEnd   = int(lineSegments[i + 2])

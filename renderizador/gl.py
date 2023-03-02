@@ -6,9 +6,9 @@
 """
 Biblioteca Gráfica / Graphics Library.
 
-Desenvolvido por: <SEU NOME AQUI>
+Desenvolvido por: Diego Saragoza da Silva 
 Disciplina: Computação Gráfica
-Data: <DATA DE INÍCIO DA IMPLEMENTAÇÃO>
+Data: 10/02/2023
 """
 
 import time         # Para operações com tempo
@@ -42,15 +42,11 @@ class GL:
         # O parâmetro colors é um dicionário com os tipos cores possíveis, para o Polypoint2D
         # você pode assumir o desenho dos pontos com a cor emissiva (emissiveColor).
 
-        # O print abaixo é só para vocês verificarem o funcionamento, DEVE SER REMOVIDO.
-        print("Polypoint2D : pontos = {0}".format(point)) # imprime no terminal pontos
-        print("Polypoint2D : colors = {0}".format(colors)) # imprime no terminal as cores
-
-        # Exemplo:
-        pos_x = GL.width//2
-        pos_y = GL.height//2
-        gpu.GPU.draw_pixel([pos_x, pos_y], gpu.GPU.RGB8, [255, 0, 0])  # altera pixel (u, v, tipo, r, g, b)
-        # cuidado com as cores, o X3D especifica de (0,1) e o Framebuffer de (0,255)
+        emissiveColor = [int(255 * c) for c in colors["emissiveColor"]]
+        for i in range(0, len(point), 2):
+            u = int(point[i + 0])
+            v = int(point[i + 1])
+            gpu.GPU.draw_pixel([pos_x, pos_y], gpu.GPU.RGB8, emissiveColor)
         
     @staticmethod
     def polyline2D(lineSegments, colors):
@@ -65,14 +61,38 @@ class GL:
         # O parâmetro colors é um dicionário com os tipos cores possíveis, para o Polyline2D
         # você pode assumir o desenho das linhas com a cor emissiva (emissiveColor).
 
-        print("Polyline2D : lineSegments = {0}".format(lineSegments)) # imprime no terminal
-        print("Polyline2D : colors = {0}".format(colors)) # imprime no terminal as cores
-        
-        # Exemplo:
-        pos_x = GL.width//2
-        pos_y = GL.height//2
-        gpu.GPU.draw_pixel([pos_x, pos_y], gpu.GPU.RGB8, [255, 0, 255])  # altera pixel (u, v, tipo, r, g, b)
-        # cuidado com as cores, o X3D especifica de (0,1) e o Framebuffer de (0,255)
+        emissiveColor = [int(255 * c) for c in colors["emissiveColor"]]
+
+        # Bresenham's algorithm with error correction
+        for i in range(0, len(lineSegments), 4):
+            uStart = int(lineSegments[i + 0])
+            vStart = int(lineSegments[i + 1])
+            uEnd   = int(lineSegments[i + 2])
+            vEnd   = int(lineSegments[i + 3])
+
+            u = uStart
+            v = vStart
+            du = abs(uEnd - uStart)
+            dv = abs(vEnd - vStart)
+            su = 1 if uStart < uEnd else -1
+            sv = 1 if vStart < vEnd else -1
+            error = du if du > dv else -dv
+            error /= 2
+            lastError = 0
+            
+            while True:
+                if (u >= 0 and v >= 0 and u < GL.width and v < GL.height):
+                    gpu.GPU.draw_pixel([u, v], gpu.GPU.RGB8, emissiveColor) 
+                
+                if (u == uEnd and v == vEnd):
+                    break
+                lastError = error
+                if (lastError > -du):
+                    error -= dv
+                    u += su
+                if (lastError < dv):
+                    error += du
+                    v += sv
 
     @staticmethod
     def triangleSet2D(vertices, colors):
@@ -84,12 +104,63 @@ class GL:
         # quantidade de pontos é sempre multiplo de 3, ou seja, 6 valores ou 12 valores, etc.
         # O parâmetro colors é um dicionário com os tipos cores possíveis, para o TriangleSet2D
         # você pode assumir o desenho das linhas com a cor emissiva (emissiveColor).
-        print("TriangleSet2D : vertices = {0}".format(vertices)) # imprime no terminal
-        print("TriangleSet2D : colors = {0}".format(colors)) # imprime no terminal as cores
+        
+        emissiveColor = [int(255 * c) for c in colors["emissiveColor"]]
 
-        # Exemplo:
-        gpu.GPU.draw_pixel([6, 8], gpu.GPU.RGB8, [255, 255, 0])  # altera pixel (u, v, tipo, r, g, b)
+        for i in range(0, len(vertices), 6):
+            p0 = [vertices[i + 0], vertices[i + 1]]
+            p1 = [vertices[i + 2], vertices[i + 3]]
+            p2 = [vertices[i + 4], vertices[i + 5]]
 
+            GL.polyline2D([*p0, *p1], colors)
+            GL.polyline2D([*p1, *p2], colors)
+            GL.polyline2D([*p2, *p0], colors)
+
+            # Find the triangle AABB
+            AABBMin = [float("inf"), float("inf")]
+            AABBMax = [float("-inf"), float("-inf")]
+
+            AABBMin[0] = p0[0] if p0[0] < AABBMin[0] else AABBMin[0]
+            AABBMin[0] = p1[0] if p1[0] < AABBMin[0] else AABBMin[0]
+            AABBMin[0] = p2[0] if p2[0] < AABBMin[0] else AABBMin[0]
+            AABBMin[1] = p0[1] if p0[1] < AABBMin[1] else AABBMin[1]
+            AABBMin[1] = p1[1] if p1[1] < AABBMin[1] else AABBMin[1]
+            AABBMin[1] = p2[1] if p2[1] < AABBMin[1] else AABBMin[1]
+
+            AABBMax[0] = p0[0] if p0[0] > AABBMax[0] else AABBMax[0]
+            AABBMax[0] = p1[0] if p1[0] > AABBMax[0] else AABBMax[0]
+            AABBMax[0] = p2[0] if p2[0] > AABBMax[0] else AABBMax[0]
+            AABBMax[1] = p0[1] if p0[1] > AABBMax[1] else AABBMax[1]
+            AABBMax[1] = p1[1] if p1[1] > AABBMax[1] else AABBMax[1]
+            AABBMax[1] = p2[1] if p2[1] > AABBMax[1] else AABBMax[1]
+
+            # Fill the triangle
+            for j in range(int(AABBMin[1]), int(AABBMax[1])):
+                for i in range(int(AABBMin[0]), int(AABBMax[0])):
+                    # Check via dot product if the point is inside the triangle or not
+                    Q = [i, j]
+                    P = [p1[0] - p0[0], p1[1] - p0[1]]
+                    n = [P[1], -P[0]]
+                    QLine = [Q[0] - p0[0], Q[1] - p0[1]]
+                    dot = QLine[0] * n[0] + QLine[1] * n[1]
+                    if dot < 0:
+                        continue
+
+                    P = [p2[0] - p1[0], p2[1] - p1[1]]
+                    n = [P[1], -P[0]]
+                    QLine = [Q[0] - p1[0], Q[1] - p1[1]]
+                    dot = QLine[0] * n[0] + QLine[1] * n[1]
+                    if dot < 0:
+                        continue
+
+                    P = [p0[0] - p2[0], p0[1] - p2[1]]
+                    n = [P[1], -P[0]]
+                    QLine = [Q[0] - p2[0], Q[1] - p2[1]]
+                    dot = QLine[0] * n[0] + QLine[1] * n[1]
+                    if dot < 0:
+                        continue
+
+                    gpu.GPU.draw_pixel([u, v], gpu.GPU.RGB8, emissiveColor)
 
     @staticmethod
     def triangleSet(point, colors):

@@ -41,11 +41,12 @@ class GL:
         # pelo tamanho da lista e assuma que sempre vira uma quantidade par de valores.
         # O parâmetro colors é um dicionário com os tipos cores possíveis, para o Polypoint2D
         # você pode assumir o desenho dos pontos com a cor emissiva (emissiveColor).
+
         emissiveColor = [int(255 * c) for c in colors["emissiveColor"]]
         for i in range(0, len(point), 2):
             u = int(point[i + 0])
             v = int(point[i + 1])
-            gpu.GPU.set_pixel(u, v, emissiveColor[0], emissiveColor[1], emissiveColor[2])
+            gpu.GPU.draw_pixel([u, v], gpu.GPU.RGB8, emissiveColor)
 
     @staticmethod
     def polyline2D(lineSegments, colors):
@@ -81,7 +82,7 @@ class GL:
             
             while True:
                 if (u >= 0 and v >= 0 and u < GL.width and v < GL.height):
-                    gpu.GPU.set_pixel(u, v, emissiveColor[0], emissiveColor[1], emissiveColor[2]) 
+                    gpu.GPU.draw_pixel([u, v], gpu.GPU.RGB8, emissiveColor)
                 
                 if (u == uEnd and v == vEnd):
                     break
@@ -158,8 +159,7 @@ class GL:
                     dot = QLine[0] * n[0] + QLine[1] * n[1]
                     if dot < 0:
                         continue
-
-                    gpu.GPU.set_pixel(Q[0], Q[1], emissiveColor[0], emissiveColor[1], emissiveColor[2])
+                    gpu.GPU.draw_pixel([u, v], gpu.GPU.RGB8, emissiveColor)
 
     @staticmethod
     def triangleSet(point, colors):
@@ -180,7 +180,7 @@ class GL:
         print("TriangleSet : colors = {0}".format(colors)) # imprime no terminal as cores
 
         # Exemplo de desenho de um pixel branco na coordenada 10, 10
-        gpu.GPU.draw_pixels([10, 10], gpu.GPU.RGB8, [255, 255, 255])  # altera pixel
+        gpu.GPU.draw_pixel([10, 10], gpu.GPU.RGB8, [255, 255, 255])  # altera pixel
 
     @staticmethod
     def viewpoint(position, orientation, fieldOfView):
@@ -249,7 +249,7 @@ class GL:
         print("TriangleStripSet : colors = {0}".format(colors)) # imprime no terminal as cores
 
         # Exemplo de desenho de um pixel branco na coordenada 10, 10
-        gpu.GPU.draw_pixels([10, 10], gpu.GPU.RGB8, [255, 255, 255])  # altera pixel
+        gpu.GPU.draw_pixel([10, 10], gpu.GPU.RGB8, [255, 255, 255])  # altera pixel
 
     @staticmethod
     def indexedTriangleStripSet(point, index, colors):
@@ -271,7 +271,7 @@ class GL:
         print("IndexedTriangleStripSet : colors = {0}".format(colors)) # imprime as cores
 
         # Exemplo de desenho de um pixel branco na coordenada 10, 10
-        gpu.GPU.draw_pixels([10, 10], gpu.GPU.RGB8, [255, 255, 255])  # altera pixel
+        gpu.GPU.draw_pixel([10, 10], gpu.GPU.RGB8, [255, 255, 255])  # altera pixel
 
     @staticmethod
     def box(size, colors):
@@ -288,7 +288,7 @@ class GL:
         print("Box : colors = {0}".format(colors)) # imprime no terminal as cores
 
         # Exemplo de desenho de um pixel branco na coordenada 10, 10
-        gpu.GPU.draw_pixels([10, 10], gpu.GPU.RGB8, [255, 255, 255])  # altera pixel
+        gpu.GPU.draw_pixel([10, 10], gpu.GPU.RGB8, [255, 255, 255])  # altera pixel
 
     @staticmethod
     def indexedFaceSet(coord, coordIndex, colorPerVertex, color, colorIndex,
@@ -329,7 +329,7 @@ class GL:
         print("IndexedFaceSet : colors = {0}".format(colors))  # imprime no terminal as cores
 
         # Exemplo de desenho de um pixel branco na coordenada 10, 10
-        gpu.GPU.draw_pixels([10, 10], gpu.GPU.RGB8, [255, 255, 255])  # altera pixel
+        gpu.GPU.draw_pixel([10, 10], gpu.GPU.RGB8, [255, 255, 255])  # altera pixel
 
     @staticmethod
     def sphere(radius, colors):

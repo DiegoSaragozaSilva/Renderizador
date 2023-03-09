@@ -329,6 +329,24 @@ class GL:
         # todos no sentido horário ou todos no sentido anti-horário, conforme especificado.
 
         ps = []
+        for i in range(stripCount[0] - 2):
+            p0 = i + 0
+            p1 = i + 1
+            p2 = i + 2
+            triangle_points = [
+                point[p0 * 3 : p0 * 3 + 3],
+                point[p1 * 3 : p1 * 3 + 3],
+                point[p2 * 3 : p2 * 3 + 3],
+            ]
+
+            if (i + 1) % 2 == 0:
+                ps.extend([*triangle_points[1], *triangle_points[0], *triangle_points[2]])
+            else:
+                ps.extend([*triangle_points[0], *triangle_points[1], *triangle_points[2]])
+
+        GL.triangleSet(ps, colors)
+
+        ps = []
         for i in range(stripCount[0] - 6):
             p0 = point[i + 0 : i + 3]
             p1 = point[i + 3 : i + 6]
@@ -355,37 +373,23 @@ class GL:
         # depois 2, 3 e 4, e assim por diante. Cuidado com a orientação dos vértices, ou seja,
         # todos no sentido horário ou todos no sentido anti-horário, conforme especificado.
 
-        # Transformations 
-        pointsMatrix = []
-        for i in range(0, len(point), 3):
-            pointsMatrix.append([point[i + 0], point[i + 1], point[i + 2], 1])
-        pointsMatrix = np.transpose(np.array(pointsMatrix))
-
-        # Transform
-        modelMatrix = GL.transformBuffer[len(GL.transformBuffer) - 1]
-        transformedPoints = np.matmul(modelMatrix, pointsMatrix)
-
-        # Project
-        projectionMatrix = GL.projectionBuffer[len(GL.projectionBuffer) - 1]
-        projectedPoints = np.transpose(np.matmul(projectionMatrix, transformedPoints)) 
-
-        # Divide by w
-        for i in range(len(projectedPoints)):
-            projectedPoint = projectedPoints[i] 
-            projectedPoint[0] /= projectedPoint[3]
-            projectedPoint[1] /= projectedPoint[3]
-            projectedPoint[2] /= projectedPoint[3]
-            projectedPoint[3] = 1
-            projectedPoints[i] = projectedPoint
-
-        pixelPoints = projectedPoints
-
-        # Rasterize points
         ps = []
-        for i in range(0, len(index)):
-            p0 = pixelPoints[index[i]]
-            ps = np.concatenate((ps, p0))
-        GL.triangleSet2D(ps, colors)
+        for i in range(len(index) - 3):
+            p0 = index[i + 0]
+            p1 = index[i + 1]
+            p2 = index[i + 2]
+            triangle_points = [
+                point[p0 * 3 : p0 * 3 + 3],
+                point[p1 * 3 : p1 * 3 + 3],
+                point[p2 * 3 : p2 * 3 + 3],
+            ]
+
+            if (i + 1) % 2 == 0:
+                ps.extend([*triangle_points[1], *triangle_points[0], *triangle_points[2]])
+            else:
+                ps.extend([*triangle_points[0], *triangle_points[1], *triangle_points[2]])
+
+        GL.triangleSet(ps, colors)
 
     @staticmethod
     def box(size, colors):

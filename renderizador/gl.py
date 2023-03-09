@@ -12,9 +12,9 @@ Data: 10/02/2023
 """
 
 import time         # Para operações com tempo
-import numpy as np  # Para matrizes e algebra linear
-
 import gpu          # Simula os recursos de uma GPU
+import math         # Funções matemáticas
+import numpy as np  # Biblioteca do Numpy
 
 class GL:
     """Classe que representa a biblioteca gráfica (Graphics Library)."""
@@ -177,8 +177,10 @@ class GL:
         # No TriangleSet os triângulos são informados individualmente, assim os três
         # primeiros pontos definem um triângulo, os três próximos pontos definem um novo
         # triângulo, e assim por diante.
-        # O parâmetro colors é um dicionário com os tipos cores possíveis, para o TriangleSet
-        # você pode assumir o desenho das linhas com a cor emissiva (emissiveColor).
+        # O parâmetro colors é um dicionário com os tipos cores possíveis, você pode assumir
+        # inicialmente, para o TriangleSet, o desenho das linhas com a cor emissiva
+        # (emissiveColor), conforme implementar novos materias você deverá suportar outros
+        # tipos de cores.
 
         # Transformations 
         pointsMatrix = []

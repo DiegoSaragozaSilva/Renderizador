@@ -12,6 +12,7 @@ Data: 10/02/2023
 """
 
 import time         # Para operações com tempo
+import numpy as np  # Para matrizes e algebra linear
 
 import gpu          # Simula os recursos de uma GPU
 
@@ -22,6 +23,8 @@ class GL:
     height = 600  # altura da tela
     near = 0.01   # plano de corte próximo
     far = 1000    # plano de corte distante
+    transformBuffer = []
+    projectionBuffer = []
 
     @staticmethod
     def setup(width, height, near=0.01, far=1000):
@@ -159,7 +162,9 @@ class GL:
                     dot = QLine[0] * n[0] + QLine[1] * n[1]
                     if dot < 0:
                         continue
-                    gpu.GPU.draw_pixel([u, v], gpu.GPU.RGB8, emissiveColor)
+                    
+                    if (i >= 0 and i < GL.width) and (j >= 0 and j < GL.height):
+                        gpu.GPU.draw_pixel([i, j], gpu.GPU.RGB8, emissiveColor)
 
     @staticmethod
     def triangleSet(point, colors):
@@ -175,12 +180,39 @@ class GL:
         # O parâmetro colors é um dicionário com os tipos cores possíveis, para o TriangleSet
         # você pode assumir o desenho das linhas com a cor emissiva (emissiveColor).
 
-        # O print abaixo é só para vocês verificarem o funcionamento, DEVE SER REMOVIDO.
-        print("TriangleSet : pontos = {0}".format(point)) # imprime no terminal pontos
-        print("TriangleSet : colors = {0}".format(colors)) # imprime no terminal as cores
+        # Transformations 
+        pointsMatrix = []
+        for i in range(0, len(point), 3):
+            pointsMatrix.append([point[i + 0], point[i + 1], point[i + 2], 1])
+        pointsMatrix = np.transpose(np.array(pointsMatrix))
 
-        # Exemplo de desenho de um pixel branco na coordenada 10, 10
-        gpu.GPU.draw_pixel([10, 10], gpu.GPU.RGB8, [255, 255, 255])  # altera pixel
+        # Transform
+        modelMatrix = GL.transformBuffer[len(GL.transformBuffer) - 1]
+        transformedPoints = np.matmul(modelMatrix, pointsMatrix)
+
+        # Project
+        projectionMatrix = GL.projectionBuffer[len(GL.projectionBuffer) - 1]
+        projectedPoints = np.transpose(np.matmul(projectionMatrix, transformedPoints)) 
+
+        # Divide by w
+        for i in range(len(projectedPoints)):
+            projectedPoint = projectedPoints[i] 
+            projectedPoint[0] /= projectedPoint[3]
+            projectedPoint[1] /= projectedPoint[3]
+            projectedPoint[2] /= projectedPoint[3]
+            projectedPoint[3] = 1
+            projectedPoints[i] = projectedPoint
+
+        pixelPoints = projectedPoints
+
+        # Rasterize points
+        ps = []
+        for i in range(0, len(pixelPoints), 3):
+            p0 = pixelPoints[i + 0][:2]
+            p1 = pixelPoints[i + 1][:2]
+            p2 = pixelPoints[i + 2][:2]
+            ps = np.concatenate((ps, p0, p1, p2))
+        GL.triangleSet2D(ps, colors)
 
     @staticmethod
     def viewpoint(position, orientation, fieldOfView):
@@ -189,11 +221,45 @@ class GL:
         # câmera virtual. Use esses dados para poder calcular e criar a matriz de projeção
         # perspectiva para poder aplicar nos pontos dos objetos geométricos.
 
-        # O print abaixo é só para vocês verificarem o funcionamento, DEVE SER REMOVIDO.
-        print("Viewpoint : ", end='')
-        print("position = {0} ".format(position), end='')
-        print("orientation = {0} ".format(orientation), end='')
-        print("fieldOfView = {0} ".format(fieldOfView))
+        rotationAngle = orientation[3]
+        rotationAxis = np.array([orientation[0], orientation[1], orientation[2]])
+        rotationAxis = rotationAxis / np.linalg.norm(rotationAxis)
+
+        qx = rotationAxis[0] * np.sin(rotationAngle / 2)
+        qy = rotationAxis[1] * np.sin(rotationAngle / 2)
+        qz = rotationAxis[2] * np.sin(rotationAngle / 2)
+        qw = np.cos(rotationAngle / 2)
+
+        rotationMatrix = np.array([[1 - 2 * qy**2 - 2 * qz**2, 2 * qx * qy - 2 * qz * qw, 2 * qx * qz + 2 * qy * qw, 0],
+                                   [2 * qx * qy + 2 * qz * qw, 1 - 2 * qx**2 - 2 * qz**2, 2 * qy * qz + 2 * qx * qw, 0],
+                                   [2 * qx * qz - 2 * qy * qw, 2 * qy * qz + 2 * qx * qw, 1 - 2 * qx**2 - 2 * qy**2, 0],
+                                   [0, 0, 0, 1]])
+
+        translationMatrix = np.array([[1, 0, 0, -position[0]],
+                                      [0, 1, 0, -position[1]],
+                                      [0, 0, 1, -position[2]],
+                                      [0, 0, 0, 1]])
+
+        lookAtMatrix = np.matmul(np.transpose(rotationMatrix), translationMatrix)
+
+        aspectRatio = (GL.width / GL.height)
+        fovy = 2 * np.arctan(np.tan(fieldOfView / 2) * GL.height / np.sqrt(GL.height**2 + GL.width**2))
+        top = GL.near * np.tan(fovy)
+        right = top * aspectRatio
+
+        projectionMatrix = np.array([[GL.near / right, 0, 0, 0],
+                                     [0, GL.near / top, 0, 0],
+                                     [0, 0, -(GL.far + GL.near) / (GL.far - GL.near), -2 * (GL.far * GL.near) / (GL.far - GL.near)],
+                                     [0, 0, -1, 0]])
+
+        # Camera normalized space to pixel space
+        screenMatrix = np.array([[GL.width / 2, 0, 0, GL.width / 2],
+                                 [0, -GL.height / 2, 0, GL.height / 2],
+                                 [0, 0, 1, 0],
+                                 [0, 0, 0, 1]])
+
+        cameraMatrix = np.matmul(np.matmul(screenMatrix, projectionMatrix), lookAtMatrix)
+        GL.projectionBuffer.append(cameraMatrix)
 
     @staticmethod
     def transform_in(translation, scale, rotation):
@@ -206,15 +272,34 @@ class GL:
         # Quando se entrar em um nó transform se deverá salvar a matriz de transformação dos
         # modelos do mundo em alguma estrutura de pilha.
 
-        # O print abaixo é só para vocês verificarem o funcionamento, DEVE SER REMOVIDO.
-        print("Transform : ", end='')
-        if translation:
-            print("translation = {0} ".format(translation), end='') # imprime no terminal
-        if scale:
-            print("scale = {0} ".format(scale), end='') # imprime no terminal
-        if rotation:
-            print("rotation = {0} ".format(rotation), end='') # imprime no terminal
-        print("")
+        translationMatrix = np.array([[1, 0, 0, translation[0]],
+                                      [0, 1, 0, translation[1]],
+                                      [0, 0, 1, translation[2]],
+                                      [0, 0, 0, 1]])
+
+        scaleMatrix = np.array([[scale[0], 0, 0, 0],
+                                [0, scale[1], 0, 0],
+                                [0, 0, scale[2], 0],
+                                [0 ,0, 0, 1]])
+        
+        rotationAngle = rotation[3]
+        rotationAxis = np.array([rotation[0], rotation[1], rotation[2]])
+        rotationAxis = rotationAxis / np.linalg.norm(rotationAxis)
+
+        qx = rotationAxis[0] * np.sin(rotationAngle / 2)
+        qy = rotationAxis[1] * np.sin(rotationAngle / 2)
+        qz = rotationAxis[2] * np.sin(rotationAngle / 2)
+        qw = np.cos(rotationAngle / 2)
+
+        rotationMatrix = np.array([[1 - 2 * (qy**2 + qz**2), 2 * (qx * qy - qz * qw), 2 * (qx * qz + qy * qw), 0],
+                                   [2 * (qx * qy + qz * qw), 1 - 2 * (qx**2 + qz**2), 2 * (qy * qz + qx * qw), 0],
+                                   [2 * (qx * qz - qy * qw), 2 * (qy * qz + qx * qw), 1 - 2 * (qx**2 + qy**2), 0],
+                                   [0, 0, 0, 1]])
+
+        modelMatrix = np.matmul(translationMatrix, rotationMatrix)
+        modelMatrix = np.matmul(modelMatrix, scaleMatrix)
+
+        GL.transformBuffer.append(modelMatrix);
 
     @staticmethod
     def transform_out():
@@ -241,15 +326,17 @@ class GL:
         # depois 2, 3 e 4, e assim por diante. Cuidado com a orientação dos vértices, ou seja,
         # todos no sentido horário ou todos no sentido anti-horário, conforme especificado.
 
-        # O print abaixo é só para vocês verificarem o funcionamento, DEVE SER REMOVIDO.
-        print("TriangleStripSet : pontos = {0} ".format(point), end='')
-        for i, strip in enumerate(stripCount):
-            print("strip[{0}] = {1} ".format(i, strip), end='')
-        print("")
-        print("TriangleStripSet : colors = {0}".format(colors)) # imprime no terminal as cores
-
-        # Exemplo de desenho de um pixel branco na coordenada 10, 10
-        gpu.GPU.draw_pixel([10, 10], gpu.GPU.RGB8, [255, 255, 255])  # altera pixel
+        ps = []
+        for i in range(stripCount[0] - 6):
+            p0 = point[i + 0 : i + 3]
+            p1 = point[i + 3 : i + 6]
+            p2 = point[i + 6 : i + 9]
+            if (i + 1) % 2 == 0:
+                ps.extend([*p1, *p0, *p2])
+            else:
+                ps.extend([*p0, *p1, *p2])
+        print(ps)
+        GL.triangleSet(ps, colors)
 
     @staticmethod
     def indexedTriangleStripSet(point, index, colors):
@@ -266,12 +353,37 @@ class GL:
         # depois 2, 3 e 4, e assim por diante. Cuidado com a orientação dos vértices, ou seja,
         # todos no sentido horário ou todos no sentido anti-horário, conforme especificado.
 
-        # O print abaixo é só para vocês verificarem o funcionamento, DEVE SER REMOVIDO.
-        print("IndexedTriangleStripSet : pontos = {0}, index = {1}".format(point, index))
-        print("IndexedTriangleStripSet : colors = {0}".format(colors)) # imprime as cores
+        # Transformations 
+        pointsMatrix = []
+        for i in range(0, len(point), 3):
+            pointsMatrix.append([point[i + 0], point[i + 1], point[i + 2], 1])
+        pointsMatrix = np.transpose(np.array(pointsMatrix))
 
-        # Exemplo de desenho de um pixel branco na coordenada 10, 10
-        gpu.GPU.draw_pixel([10, 10], gpu.GPU.RGB8, [255, 255, 255])  # altera pixel
+        # Transform
+        modelMatrix = GL.transformBuffer[len(GL.transformBuffer) - 1]
+        transformedPoints = np.matmul(modelMatrix, pointsMatrix)
+
+        # Project
+        projectionMatrix = GL.projectionBuffer[len(GL.projectionBuffer) - 1]
+        projectedPoints = np.transpose(np.matmul(projectionMatrix, transformedPoints)) 
+
+        # Divide by w
+        for i in range(len(projectedPoints)):
+            projectedPoint = projectedPoints[i] 
+            projectedPoint[0] /= projectedPoint[3]
+            projectedPoint[1] /= projectedPoint[3]
+            projectedPoint[2] /= projectedPoint[3]
+            projectedPoint[3] = 1
+            projectedPoints[i] = projectedPoint
+
+        pixelPoints = projectedPoints
+
+        # Rasterize points
+        ps = []
+        for i in range(0, len(index)):
+            p0 = pixelPoints[index[i]]
+            ps = np.concatenate((ps, p0))
+        GL.triangleSet2D(ps, colors)
 
     @staticmethod
     def box(size, colors):

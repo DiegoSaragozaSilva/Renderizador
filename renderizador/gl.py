@@ -16,6 +16,8 @@ import gpu          # Simula os recursos de uma GPU
 import math         # Funções matemáticas
 import numpy as np  # Biblioteca do Numpy
 
+from stack import Stack
+
 class GL:
     """Classe que representa a biblioteca gráfica (Graphics Library)."""
 
@@ -23,7 +25,10 @@ class GL:
     height = 600  # altura da tela
     near = 0.01   # plano de corte próximo
     far = 1000    # plano de corte distante
-    transformBuffer = []
+
+    transformStack = Stack()
+    transformStack.push(np.identity(4))
+
     projectionBuffer = []
 
     @staticmethod
@@ -115,31 +120,13 @@ class GL:
             p1 = [vertices[i + 2], vertices[i + 3]]
             p2 = [vertices[i + 4], vertices[i + 5]]
 
-            GL.polyline2D([*p0, *p1], colors)
-            GL.polyline2D([*p1, *p2], colors)
-            GL.polyline2D([*p2, *p0], colors)
-
             # Find the triangle AABB
-            AABBMin = [float("inf"), float("inf")]
-            AABBMax = [float("-inf"), float("-inf")]
-
-            AABBMin[0] = p0[0] if p0[0] < AABBMin[0] else AABBMin[0]
-            AABBMin[0] = p1[0] if p1[0] < AABBMin[0] else AABBMin[0]
-            AABBMin[0] = p2[0] if p2[0] < AABBMin[0] else AABBMin[0]
-            AABBMin[1] = p0[1] if p0[1] < AABBMin[1] else AABBMin[1]
-            AABBMin[1] = p1[1] if p1[1] < AABBMin[1] else AABBMin[1]
-            AABBMin[1] = p2[1] if p2[1] < AABBMin[1] else AABBMin[1]
-
-            AABBMax[0] = p0[0] if p0[0] > AABBMax[0] else AABBMax[0]
-            AABBMax[0] = p1[0] if p1[0] > AABBMax[0] else AABBMax[0]
-            AABBMax[0] = p2[0] if p2[0] > AABBMax[0] else AABBMax[0]
-            AABBMax[1] = p0[1] if p0[1] > AABBMax[1] else AABBMax[1]
-            AABBMax[1] = p1[1] if p1[1] > AABBMax[1] else AABBMax[1]
-            AABBMax[1] = p2[1] if p2[1] > AABBMax[1] else AABBMax[1]
+            AABBMin = list(map(int, np.floor([min(p0[0], p1[0], p2[0]), min(p0[1], p1[1], p2[1])])))
+            AABBMax = list(map(int, np.ceil([max(p0[0], p1[0], p2[0]), max(p0[1], p1[1], p2[1])])))
 
             # Fill the triangle
-            for j in range(int(AABBMin[1]), int(AABBMax[1])):
-                for i in range(int(AABBMin[0]), int(AABBMax[0])):
+            for j in range(AABBMin[1], AABBMax[1]):
+                for i in range(AABBMin[0], AABBMax[0]):
                     # Check via dot product if the point is inside the triangle or not
                     Q = [i, j]
                     P = [p1[0] - p0[0], p1[1] - p0[1]]
@@ -189,7 +176,7 @@ class GL:
         pointsMatrix = np.transpose(np.array(pointsMatrix))
 
         # Transform
-        modelMatrix = GL.transformBuffer[len(GL.transformBuffer) - 1]
+        modelMatrix = GL.transformStack.peek()
         transformedPoints = np.matmul(modelMatrix, pointsMatrix)
 
         # Project
@@ -260,7 +247,7 @@ class GL:
                                  [0, 0, 1, 0],
                                  [0, 0, 0, 1]])
 
-        cameraMatrix = np.matmul(np.matmul(screenMatrix, projectionMatrix), lookAtMatrix)
+        cameraMatrix = np.matmul(np.matmul(screenMatrix, projectionMatrix), lookAtMatrix) 
         GL.projectionBuffer.append(cameraMatrix)
 
     @staticmethod
@@ -301,7 +288,9 @@ class GL:
         modelMatrix = np.matmul(translationMatrix, rotationMatrix)
         modelMatrix = np.matmul(modelMatrix, scaleMatrix)
 
-        GL.transformBuffer.append(modelMatrix);
+        parentModelMatrix = GL.transformStack.peek()
+        relativeModelMatrix = np.matmul(parentModelMatrix, modelMatrix)
+        GL.transformStack.push(relativeModelMatrix);
 
     @staticmethod
     def transform_out():
@@ -311,8 +300,7 @@ class GL:
         # deverá recuperar a matriz de transformação dos modelos do mundo da estrutura de
         # pilha implementada.
 
-        # O print abaixo é só para vocês verificarem o funcionamento, DEVE SER REMOVIDO.
-        print("Saindo de Transform")
+        GL.transformStack.pop()
 
     @staticmethod
     def triangleStripSet(point, stripCount, colors):
@@ -355,7 +343,6 @@ class GL:
                 ps.extend([*p1, *p0, *p2])
             else:
                 ps.extend([*p0, *p1, *p2])
-        print(ps)
         GL.triangleSet(ps, colors)
 
     @staticmethod
@@ -430,24 +417,24 @@ class GL:
         # textura para o poligono, para isso, use as coordenadas de textura e depois aplique a
         # cor da textura conforme a posição do mapeamento. Dentro da classe GPU já está
         # implementadado um método para a leitura de imagens.
+        
+        ps = []
+        for i in range(0, len(coordIndex) - 3, 4):
+            p0 = coordIndex[i + 0]
+            p1 = coordIndex[i + 1]
+            p2 = coordIndex[i + 2]
+            triangle_points = [
+                coord[p0 * 3 : p0 * 3 + 3],
+                coord[p1 * 3 : p1 * 3 + 3],
+                coord[p2 * 3 : p2 * 3 + 3],
+            ]
 
-        # Os prints abaixo são só para vocês verificarem o funcionamento, DEVE SER REMOVIDO.
-        print("IndexedFaceSet : ")
-        if coord:
-            print("\tpontos(x, y, z) = {0}, coordIndex = {1}".format(coord, coordIndex))
-        print("colorPerVertex = {0}".format(colorPerVertex))
-        if colorPerVertex and color and colorIndex:
-            print("\tcores(r, g, b) = {0}, colorIndex = {1}".format(color, colorIndex))
-        if texCoord and texCoordIndex:
-            print("\tpontos(u, v) = {0}, texCoordIndex = {1}".format(texCoord, texCoordIndex))
-        if current_texture:
-            image = gpu.GPU.load_texture(current_texture[0])
-            print("\t Matriz com image = {0}".format(image))
-            print("\t Dimensões da image = {0}".format(image.shape))
-        print("IndexedFaceSet : colors = {0}".format(colors))  # imprime no terminal as cores
+            if (i + 1) % 2 == 0:
+                ps.extend([*triangle_points[1], *triangle_points[0], *triangle_points[2]])
+            else:
+                ps.extend([*triangle_points[0], *triangle_points[1], *triangle_points[2]])
 
-        # Exemplo de desenho de um pixel branco na coordenada 10, 10
-        gpu.GPU.draw_pixel([10, 10], gpu.GPU.RGB8, [255, 255, 255])  # altera pixel
+        GL.triangleSet(ps, colors)
 
     @staticmethod
     def sphere(radius, colors):

@@ -25,19 +25,24 @@ class GL:
     height = 600  # altura da tela
     near = 0.01   # plano de corte próximo
     far = 1000    # plano de corte distante
-
+    
     transformStack = Stack()
     transformStack.push(np.identity(4))
 
     projectionBuffer = []
 
+    drawBuffer = None
+    depthBuffer = None
+
     @staticmethod
-    def setup(width, height, near=0.01, far=1000):
+    def setup(width, height, drawBuffer, depthBuffer, near=0.01, far=1000):
         """Definr parametros para câmera de razão de aspecto, plano próximo e distante."""
         GL.width = width
         GL.height = height
         GL.near = near
         GL.far = far
+        GL.drawBuffer = drawBuffer
+        GL.depthBuffer = depthBuffer
 
     @staticmethod
     def polypoint2D(point, colors):
@@ -112,9 +117,8 @@ class GL:
         # quantidade de pontos é sempre multiplo de 3, ou seja, 6 valores ou 12 valores, etc.
         # O parâmetro colors é um dicionário com os tipos cores possíveis, para o TriangleSet2D
         # você pode assumir o desenho das linhas com a cor emissiva (emissiveColor).
-        
-        emissiveColor = [int(255 * c) for c in colors["emissiveColor"]]
 
+        emissiveColor = [int(255 * c) for c in colors["emissiveColor"]]
         for i in range(0, len(vertices), 6):
             p0 = [vertices[i + 0], vertices[i + 1]]
             p1 = [vertices[i + 2], vertices[i + 3]]
@@ -123,12 +127,14 @@ class GL:
             # Find the triangle AABB
             AABBMin = list(map(int, np.floor([min(p0[0], p1[0], p2[0]), min(p0[1], p1[1], p2[1])])))
             AABBMax = list(map(int, np.ceil([max(p0[0], p1[0], p2[0]), max(p0[1], p1[1], p2[1])])))
-
+            
             # Fill the triangle
-            for j in range(AABBMin[1], AABBMax[1]):
-                for i in range(AABBMin[0], AABBMax[0]):
-                    # Check via dot product if the point is inside the triangle or not
-                    Q = [i, j]
+            for v in range(AABBMin[1], AABBMax[1]):
+                for u in range(AABBMin[0], AABBMax[0]):
+                    if (u < 0 or u >= GL.width) or (v < 0 or v >= GL.height):
+                        continue
+
+                    Q = [u, v]
                     P = [p1[0] - p0[0], p1[1] - p0[1]]
                     n = [P[1], -P[0]]
                     QLine = [Q[0] - p0[0], Q[1] - p0[1]]
@@ -149,9 +155,8 @@ class GL:
                     dot = QLine[0] * n[0] + QLine[1] * n[1]
                     if dot < 0:
                         continue
-                    
-                    if (i >= 0 and i < GL.width) and (j >= 0 and j < GL.height):
-                        gpu.GPU.draw_pixel([i, j], gpu.GPU.RGB8, emissiveColor)
+
+                    gpu.GPU.draw_pixel([u, v], gpu.GPU.RGB8, emissiveColor)
 
     @staticmethod
     def triangleSet(point, colors):
@@ -168,16 +173,18 @@ class GL:
         # inicialmente, para o TriangleSet, o desenho das linhas com a cor emissiva
         # (emissiveColor), conforme implementar novos materias você deverá suportar outros
         # tipos de cores.
-
+        
         # Transformations 
         pointsMatrix = []
         for i in range(0, len(point), 3):
             pointsMatrix.append([point[i + 0], point[i + 1], point[i + 2], 1])
         pointsMatrix = np.transpose(np.array(pointsMatrix))
-
+        print(pointsMatrix)
+        
         # Transform
         modelMatrix = GL.transformStack.peek()
         transformedPoints = np.matmul(modelMatrix, pointsMatrix)
+        print(transformedPoints)
 
         # Project
         projectionMatrix = GL.projectionBuffer[len(GL.projectionBuffer) - 1]
@@ -191,17 +198,100 @@ class GL:
             projectedPoint[2] /= projectedPoint[3]
             projectedPoint[3] = 1
             projectedPoints[i] = projectedPoint
+        projectedPoints = np.transpose(projectedPoints)
+        print(projectedPoints)
 
-        pixelPoints = projectedPoints
+        # Camera normalized space to pixel space
+        screenMatrix = np.array([[GL.width / 2, 0, 0, GL.width / 2],
+                                 [0, -GL.height / 2, 0, GL.height / 2],
+                                 [0, 0, 1, 0],
+                                 [0, 0, 0, 1]])
+        pixelPoints = np.transpose(np.matmul(screenMatrix, projectedPoints))
+        print(pixelPoints)
 
         # Rasterize points
         ps = []
+        zs = []
         for i in range(0, len(pixelPoints), 3):
+            zs.append(pixelPoints[i + 0][2])
+            zs.append(pixelPoints[i + 1][2])
+            zs.append(pixelPoints[i + 2][2])
             p0 = pixelPoints[i + 0][:2]
             p1 = pixelPoints[i + 1][:2]
             p2 = pixelPoints[i + 2][:2]
             ps = np.concatenate((ps, p0, p1, p2))
-        GL.triangleSet2D(ps, colors)
+
+        if type(colors) is dict:
+            GL.triangleSet2D(ps, colors)
+        else:
+            vertices = ps
+            for i in range(0, len(vertices), 6):
+                p0 = [vertices[i + 0], vertices[i + 1]]
+                p1 = [vertices[i + 2], vertices[i + 3]]
+                p2 = [vertices[i + 4], vertices[i + 5]]
+                z0 = zs[i // 6 + 0]
+                z1 = zs[i // 6 + 1]
+                z2 = zs[i // 6 + 2]
+                c0 = colors[i + 0 + (3 * i // 6) : i + 3 + (3 * i // 6)]
+                c1 = colors[i + 3  + (3 * i // 6): i + 6 + (3 * i // 6)]
+                c2 = colors[i + 6  + (3 * i // 6): i + 9 + (3 * i // 6)]
+
+                # Find the triangle AABB
+                AABBMin = list(map(int, np.floor([min(p0[0], p1[0], p2[0]), min(p0[1], p1[1], p2[1])])))
+                AABBMax = list(map(int, np.ceil([max(p0[0], p1[0], p2[0]), max(p0[1], p1[1], p2[1])])))
+                
+                # Fill the triangle
+                for v in range(AABBMin[1], AABBMax[1]):
+                    for u in range(AABBMin[0], AABBMax[0]):
+                        if (u < 0 or u >= GL.width) or (v < 0 or v >= GL.height):
+                            continue
+
+                        Q = [u, v]
+                        P = [p1[0] - p0[0], p1[1] - p0[1]]
+                        n = [P[1], -P[0]]
+                        QLine = [Q[0] - p0[0], Q[1] - p0[1]]
+                        dot = QLine[0] * n[0] + QLine[1] * n[1]
+                        if dot < 0:
+                            continue
+
+                        P = [p2[0] - p1[0], p2[1] - p1[1]]
+                        n = [P[1], -P[0]]
+                        QLine = [Q[0] - p1[0], Q[1] - p1[1]]
+                        dot = QLine[0] * n[0] + QLine[1] * n[1]
+                        if dot < 0:
+                            continue
+
+                        P = [p0[0] - p2[0], p0[1] - p2[1]]
+                        n = [P[1], -P[0]]
+                        QLine = [Q[0] - p2[0], Q[1] - p2[1]]
+                        dot = QLine[0] * n[0] + QLine[1] * n[1]
+                        if dot < 0:
+                            continue
+                        
+                        # Color interpolation
+                        A = p0
+                        B = p1
+                        C = p2
+                        p = [u, v]
+                        alpha = (-(p[0] - B[0]) * (C[1] - B[1]) + (p[1] - B[1]) * (C[0] - B[0])) / (-(A[0] - B[0]) * (C[1] - B[1]) + (A[1] - B[1]) * (C[0] - B[0]))
+                        beta = (-(p[0] - C[0]) * (A[1] - C[1]) + (p[1] - C[1]) * (A[0] - C[0])) / (-(B[0] - C[0]) * (A[1] - C[1]) + (B[1] - C[1]) * (A[0] - C[0]))
+                        gamma = 1 - alpha - beta
+                        
+                        z = 1 / (alpha / z0 + beta / z1 + gamma / z2)
+
+                        gpu.GPU.bind_framebuffer(gpu.GPU.FRAMEBUFFER, GL.depthBuffer) 
+                        if (z < gpu.GPU.read_pixel(p, gpu.GPU.DEPTH_COMPONENT32F)):
+                            gpu.GPU.draw_pixel(p, gpu.GPU.DEPTH_COMPONENT32F, z)
+                            gpu.GPU.draw_pixel(p, gpu.GPU.RGB8, [z * 255] * 3)
+                            gpu.GPU.bind_framebuffer(gpu.GPU.FRAMEBUFFER, GL.drawBuffer) 
+
+                            _c0 = [c * alpha for c in c0]
+                            _c1 = [c * beta for c in c1]
+                            _c2 = [c * gamma for c in c2]
+                            Cs = [_c0, _c1, _c2]
+                            _color = [sum(c * 255) for c in zip(*Cs)]
+
+                            gpu.GPU.draw_pixel(p, gpu.GPU.RGB8, _color)
 
     @staticmethod
     def viewpoint(position, orientation, fieldOfView):
@@ -247,7 +337,7 @@ class GL:
                                  [0, 0, 1, 0],
                                  [0, 0, 0, 1]])
 
-        cameraMatrix = np.matmul(np.matmul(screenMatrix, projectionMatrix), lookAtMatrix) 
+        cameraMatrix = np.matmul(projectionMatrix, lookAtMatrix) 
         GL.projectionBuffer.append(cameraMatrix)
 
     @staticmethod
@@ -416,8 +506,8 @@ class GL:
         # baricêntrico de que cor deverá ter aquela posição. Da mesma forma se pode definir uma
         # textura para o poligono, para isso, use as coordenadas de textura e depois aplique a
         # cor da textura conforme a posição do mapeamento. Dentro da classe GPU já está
-        # implementadado um método para a leitura de imagens.
-        
+        # implementadado um método para a leitura de imagens. 
+
         ps = []
         for i in range(0, len(coordIndex) - 3, 4):
             p0 = coordIndex[i + 0]
@@ -426,15 +516,31 @@ class GL:
             triangle_points = [
                 coord[p0 * 3 : p0 * 3 + 3],
                 coord[p1 * 3 : p1 * 3 + 3],
-                coord[p2 * 3 : p2 * 3 + 3],
+                coord[p2 * 3 : p2 * 3 + 3]
             ]
-
             if (i + 1) % 2 == 0:
                 ps.extend([*triangle_points[1], *triangle_points[0], *triangle_points[2]])
             else:
                 ps.extend([*triangle_points[0], *triangle_points[1], *triangle_points[2]])
-
-        GL.triangleSet(ps, colors)
+        
+        if not colorPerVertex:
+            GL.triangleSet(ps, colors)
+        else:
+            cs = []
+            for i in range (0, len(colorIndex) - 3, 4):
+                c0 = colorIndex[i + 0]
+                c1 = colorIndex[i + 1]
+                c2 = colorIndex[i + 2]
+                triangle_colors = [ 
+                    color[c0 * 3 : c0 * 3 + 3],
+                    color[c1 * 3 : c1 * 3 + 3],
+                    color[c2 * 3 : c2 * 3 + 3],
+                ]
+                if (i + 1) % 2 == 0:
+                    cs.extend([*triangle_colors[1], *triangle_colors[0], *triangle_colors[2]])
+                else:
+                    cs.extend([*triangle_colors[0], *triangle_colors[1], *triangle_colors[2]])
+            GL.triangleSet(ps, cs)
 
     @staticmethod
     def sphere(radius, colors):

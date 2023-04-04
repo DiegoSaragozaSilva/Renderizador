@@ -35,7 +35,7 @@ class Renderizador:
         self.image_file = "tela.png"
         self.scene = None
         self.framebuffers = {}
-        self.supersampling = False
+        self.supersampling = True
         self.samplingLevel = 2
 
     def setup(self):
@@ -70,26 +70,27 @@ class Renderizador:
             self.framebuffers["DEPTH"],
             gpu.GPU.COLOR_ATTACHMENT,
             gpu.GPU.RGB8,
-            self.width,
-            self.height
+            self.width * self.samplingLevel if self.supersampling else self.width,
+            self.height * self.samplingLevel if self.supersampling else self.height
         )
 
         gpu.GPU.framebuffer_storage(
             self.framebuffers["DEPTH"],
             gpu.GPU.DEPTH_ATTACHMENT,
             gpu.GPU.DEPTH_COMPONENT32F,
-            self.width,
-            self.height
+            self.width * self.samplingLevel if self.supersampling else self.width,
+            self.height * self.samplingLevel if self.supersampling else self.height
+        )
+
+        gpu.GPU.framebuffer_storage(
+            self.framebuffers["SSAA"],
+            gpu.GPU.COLOR_ATTACHMENT,
+            gpu.GPU.RGB8,
+            self.width * self.samplingLevel if self.supersampling else self.width,
+            self.height * self.samplingLevel if self.supersampling else self.height
         )
 
         if (self.supersampling):
-            gpu.GPU.framebuffer_storage(
-                self.framebuffers["SSAA"],
-                gpu.GPU.COLOR_ATTACHMENT,
-                gpu.GPU.RGB8,
-                self.width * self.samplingLevel,
-                self.height * self.samplingLevel
-            )
             gpu.GPU.bind_framebuffer(gpu.GPU.FRAMEBUFFER, self.framebuffers["SSAA"])
         else:
             gpu.GPU.bind_framebuffer(gpu.GPU.FRAMEBUFFER, self.framebuffers["FRONT"])
@@ -119,7 +120,7 @@ class Renderizador:
         gpu.GPU.bind_framebuffer(gpu.GPU.FRAMEBUFFER, self.framebuffers["DEPTH"])
         for j in range(self.height):
             for i in range(self.width):
-                gpu.GPU.draw_pixel([i, j], gpu.GPU.DEPTH_COMPONENT32F, float("inf"))
+                gpu.GPU.draw_pixel([i, j], gpu.GPU.DEPTH_COMPONENT32F, [float("inf")])
         gpu.GPU.bind_framebuffer(gpu.GPU.FRAMEBUFFER, self.framebuffers["FRONT"])
 
     def pre(self):
@@ -186,7 +187,6 @@ class Renderizador:
         self.pre()  # executa rotina pré renderização
         self.scene.render()  # faz o traversal no grafo de cena
         self.pos()  # executa rotina pós renderização
-        gpu.GPU.bind_framebuffer(gpu.GPU.FRAMEBUFFER, self.framebuffers["DEPTH"])
         return gpu.GPU.get_frame_buffer()
 
     def main(self):

@@ -178,7 +178,7 @@ class GL:
         for i in range(0, len(point), 3):
             pointsMatrix.append([point[i + 0], point[i + 1], point[i + 2], 1])
         pointsMatrix = np.transpose(np.array(pointsMatrix))
-        
+       
         # Transform
         modelMatrix = GL.transformStack.peek()
         transformedPoints = np.matmul(modelMatrix, pointsMatrix)
@@ -192,17 +192,13 @@ class GL:
             projectedPoint = projectedPoints[i] 
             projectedPoint[0] /= projectedPoint[3]
             projectedPoint[1] /= projectedPoint[3]
-            projectedPoint[2] /= projectedPoint[3]
+            print(projectedPoint[2])
+            projectedPoint[2] = projectedPoint[3]
             projectedPoint[3] = 1
             projectedPoints[i] = projectedPoint
-        projectedPoints = np.transpose(projectedPoints)
-
-        # Camera normalized space to pixel space
-        screenMatrix = np.array([[GL.width / 2, 0, 0, GL.width / 2],
-                                 [0, -GL.height / 2, 0, GL.height / 2],
-                                 [0, 0, 1, 0],
-                                 [0, 0, 0, 1]])
-        pixelPoints = np.transpose(np.matmul(screenMatrix, projectedPoints))
+        
+        pixelPoints = projectedPoints
+        print(pixelPoints)
 
         # Rasterize points
         ps = []
@@ -215,7 +211,9 @@ class GL:
             p1 = pixelPoints[i + 1][:2]
             p2 = pixelPoints[i + 2][:2]
             ps = np.concatenate((ps, p0, p1, p2))
-    
+        
+        print(zs)
+
         if type(colors) is dict:
             vertices = ps
             emissiveColor = colors["emissiveColor"]
@@ -274,9 +272,9 @@ class GL:
                         gpu.GPU.bind_framebuffer(gpu.GPU.FRAMEBUFFER, GL.depthBuffer)
                         if (z < gpu.GPU.read_pixel(p, gpu.GPU.DEPTH_COMPONENT32F)):
                             gpu.GPU.draw_pixel(p, gpu.GPU.DEPTH_COMPONENT32F, [z])
-                            gpu.GPU.draw_pixel(p, gpu.GPU.RGB8, [z * 255] * 3)
+                            # gpu.GPU.draw_pixel(p, gpu.GPU.RGB8, [z * 255] * 3)
                             gpu.GPU.bind_framebuffer(gpu.GPU.FRAMEBUFFER, GL.drawBuffer)
-                            
+
                             lastColor = gpu.GPU.read_pixel(p, gpu.GPU.RGB8)
                             lastColorTransparent = [c * transparency for c in lastColor]
 
@@ -345,7 +343,7 @@ class GL:
                         gpu.GPU.bind_framebuffer(gpu.GPU.FRAMEBUFFER, GL.depthBuffer) 
                         if (z < gpu.GPU.read_pixel(p, gpu.GPU.DEPTH_COMPONENT32F)):
                             gpu.GPU.draw_pixel(p, gpu.GPU.DEPTH_COMPONENT32F, [z])
-                            gpu.GPU.draw_pixel(p, gpu.GPU.RGB8, [z * 255] * 3)
+                            # gpu.GPU.draw_pixel(p, gpu.GPU.RGB8, [z * 255] * 3)
 
                             _c0 = [c * alpha for c in c0]
                             _c1 = [c * beta for c in c1]
@@ -401,7 +399,7 @@ class GL:
                                  [0, 0, 1, 0],
                                  [0, 0, 0, 1]])
 
-        cameraMatrix = np.matmul(projectionMatrix, lookAtMatrix) 
+        cameraMatrix = np.matmul(screenMatrix, np.matmul(projectionMatrix, lookAtMatrix))
         GL.projectionBuffer.append(cameraMatrix)
 
     @staticmethod

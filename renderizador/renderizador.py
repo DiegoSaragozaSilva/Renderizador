@@ -35,7 +35,7 @@ class Renderizador:
         self.image_file = "tela.png"
         self.scene = None
         self.framebuffers = {}
-        self.supersampling = True
+        self.supersampling = False
         self.samplingLevel = 2
 
     def setup(self):

@@ -241,6 +241,7 @@ class Renderizador:
             self.height * self.samplingLevel if self.supersampling else self.height,
             self.framebuffers["SSAA"] if self.supersampling else self.framebuffers["FRONT"],
             self.framebuffers["DEPTH"],
+            self.x3d_file.rsplit('/', 1)[0] ,
             near=0.01,
             far=1000
         )

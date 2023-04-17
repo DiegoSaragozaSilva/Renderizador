@@ -1,6 +1,8 @@
 from Math.vec2 import *
 from Math.vec3 import *
 
+from PIL import Image
+
 def bresenham(start: Vec2, end: Vec2) -> list:
     points = list()
 
@@ -46,7 +48,6 @@ def is_point_inside_triangle(point: Vec2, v0: Vec2, v1: Vec2, v2: Vec2) -> bool:
     if dot < 0:
         return False
 
-    Q = point
     P = Vec2(v0.x - v2.x, v0.y - v2.y)
     n = Vec2(P[1], -P[0])
     QLine = Vec2(Q.x - v2.x, Q.y - v2.y)
@@ -62,12 +63,14 @@ def homogeneous_divide(mat: np.ndarray) -> np.ndarray:
         row[0] /= row[3]
         row[1] /= row[3]
         row[2] /= row[3]
-        row[3] = 1
+        row[3] = 1.0
     return np.transpose(mat)
 
 def get_baricentric_coefficients(v0: Vec2, v1: Vec2, v2: Vec2, point: Vec2) -> Vec3:
     alpha = (-(point.x - v1.x) * (v2.y - v1.y) + (point.y - v1.y) * (v2.x - v1.x)) / (-(v0.x - v1.x) * (v2.y - v1.y) + (v0.y - v1.y) * (v2.x - v1.x))
     beta = (-(point.x - v2.x) * (v0.y - v2.y) + (point.y - v2.y) * (v0.x - v2.x)) / (-(v1.x - v2.x) * (v0.y - v2.y) + (v1.y - v2.y) * (v0.x - v2.x))
-    gamma = 1 - alpha - beta
+    gamma = 1.0 - alpha - beta
     return Vec3(alpha, beta, gamma)
 
+def load_image_buffer(path):
+    return Image.open(path).load()

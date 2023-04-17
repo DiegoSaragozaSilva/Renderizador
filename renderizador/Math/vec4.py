@@ -1,20 +1,15 @@
 from math import sqrt
 import numpy as np
 
-class Vec4:
-    x = 0
-    y = 0
-    z = 0
-    w = 0
-    
-    def __init__(self, x = 0, y = 0, z = 0, w = 0):
+class Vec4:  
+    def __init__(self, x: float = 0.0, y: float = 0.0, z: float = 0.0, w: float = 0.0):
         self.x = x
         self.y = y
         self.z = z
         self.w = w
 
     def __str__(self):
-        return f"[{self.x:.4f}, {self.y:.4f}, {self.z:.4f}, {self.w:.4f}]"
+        return f"[{self.x}, {self.y}, {self.z}, {self.w}]"
     
     def __getitem__(self, index):
         if index >= 0 and index < 4:
@@ -46,59 +41,42 @@ class Vec4:
 
     def __add__(self, b):
         if isinstance(b, Vec4):
-            self.x += b.x
-            self.y += b.y
-            self.z += b.z
-            self.w += b.w
+            return Vec4(self.x + b.x, self.y + b.y, self.z + b.z, self.w + b.w)
         elif isinstance(b, int) or isinstance(b, float):
-            self.x += b
-            self.y += b
-            self.z += b
-            self.w += b
+            return Vec4(self.x + b, self.y + b, self.z + b, self.w + b)
         else:
             raise NotImplementedError
-        return self
 
     def __sub__(self, b):
         if isinstance(b, Vec4):
-            self.x -= b.x
-            self.y -= b.y
-            self.z -= b.z
-            self.w -= b.w
+            return Vec4(self.x - b.x, self.y - b.y, self.z - b.z, self.w - b.w)
         elif isinstance(b, int) or isinstance(b, float):
-            self.x -= b
-            self.y -= b
-            self.z -= b
-            self.w -= b
+            return Vec4(self.x - b, self.y - b, self.z - b, self.w - b)
         else:
             raise NotImplementedError
-        return self
 
     def __mul__(self, b):
         if isinstance(b, int) or isinstance(b, float):
-            self.x *= b
-            self.y *= b
-            self.z *= b
-            self.w *= b
+            return Vec4(self.x * b, self.y * b, self.z * b, self.w * b)
         else:
             raise NotImplementedError
-        return self
     
     def __truediv__(self, b):
         if isinstance(b, int) or isinstance(b, float):
-            self.x /= b
-            self.y /= b
-            self.z /= b
-            self.w /= b
+            return Vec4(self.x / b, self.y / b, self.z / b, self.w / b)
         else:
             raise NotImplementedError
-        return self
     
     def length(self):
         return sqrt(self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w)
     
     def normalize(self):
-        self /= self.length()
+        length = self.length()
+        self.x /= length
+        self.y /= length
+        self.z /= length
+        self.w /= length
+        return self
 
     def to_list(self):
         return [self.x, self.y, self.z, self.w]

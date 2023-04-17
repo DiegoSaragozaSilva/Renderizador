@@ -1,5 +1,5 @@
-from vec2 import *
-from vec3 import *
+from .vec2 import *
+from .vec3 import *
 
 def dot(a, b):
     if isinstance(a, Vec2) and isinstance(b, Vec2):

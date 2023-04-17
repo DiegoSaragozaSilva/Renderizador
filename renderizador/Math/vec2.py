@@ -2,15 +2,12 @@ from math import sqrt
 import numpy as np
 
 class Vec2:
-    x = 0
-    y = 0
-    
-    def __init__(self, x = 0, y = 0):
+    def __init__(self, x: float = 0.0, y: float = 0.0):
         self.x = x
         self.y = y
 
     def __str__(self):
-        return f"[{self.x:.4f}, {self.y:.4f}]"
+        return f"[{self.x}, {self.y}]"
     
     def __getitem__(self, index):
         if index >= 0 and index < 2:
@@ -34,47 +31,40 @@ class Vec2:
 
     def __add__(self, b):
         if isinstance(b, Vec2):
-            self.x += b.x
-            self.y += b.y
+            return Vec2(self.x + b.x, self.y + b.y)
         elif isinstance(b, int) or isinstance(b, float):
-            self.x += b
-            self.y += b
+            return Vec2(self.x + b, self.y + b)
         else:
             raise NotImplementedError
-        return self
 
     def __sub__(self, b):
         if isinstance(b, Vec2):
-            self.x -= b.x
-            self.y -= b.y
+            return Vec2(self.x - b.x, self.y - b.y)
         elif isinstance(b, int) or isinstance(b, float):
-            self.x -= b
-            self.y -= b
+            return Vec2(self.x - b, self.y - b)
         else:
             raise NotImplementedError
-        return self
 
     def __mul__(self, b):
         if isinstance(b, int) or isinstance(b, float):
-            self.x *= b
-            self.y *= b
+            return Vec2(self.x * b, self.y * b,)
         else:
             raise NotImplementedError
-        return self
     
     def __truediv__(self, b):
         if isinstance(b, int) or isinstance(b, float):
-            self.x /= b
-            self.y /= b
+            return Vec2(self.x / b, self.y / b)
         else:
             raise NotImplementedError
-        return self
     
     def length(self):
         return sqrt(self.x * self.x + self.y * self.y)
     
     def normalize(self):
-        self /= self.length()
+        length = self.length()
+        self.x /= length
+        self.y /= length
+        return self
 
     def to_list(self):
         return [self.x, self.y]

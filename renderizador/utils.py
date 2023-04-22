@@ -1,5 +1,6 @@
 from Math.vec2 import *
 from Math.vec3 import *
+from Math.vec_math import *
 
 from PIL import Image
 
@@ -74,3 +75,19 @@ def get_baricentric_coefficients(v0: Vec2, v1: Vec2, v2: Vec2, point: Vec2) -> V
 
 def load_image_buffer(path):
     return Image.open(path).load()
+
+def get_triangles_normals(vertex_list):
+    normals = list()
+    for i in range(0, len(vertex_list) - 2, 3):
+        v0 = Vec3()
+        v1 = Vec3()
+        v2 = Vec3()
+
+        v0.from_list(vertex_list[i + 0][:3])
+        v1.from_list(vertex_list[i + 1][:3])
+        v2.from_list(vertex_list[i + 2][:3])
+
+        normal = cross(v2 - v0, v1 - v0)
+        normal.normalize()
+        normals.append(normal)
+    return normals

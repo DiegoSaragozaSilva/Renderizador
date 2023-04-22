@@ -54,8 +54,6 @@ class GL:
     target_texture = None
 
     lights = list()
-    ambient_light = Vec3(0.05, 0.05, 0.05)
-    specular_exponent = 2.0
 
     sphere_refinement_level = 2
 
@@ -130,26 +128,14 @@ class GL:
         points_matrix = list()
         for i in range(0, len(point), 3):
             points_matrix.append([point[i + 0], point[i + 1], point[i + 2], 1])
-
-        triangles_normals = list()
-        for i in range(0, len(points_matrix) - 2, 3):
-            v0 = Vec3()
-            v1 = Vec3()
-            v2 = Vec3()
-
-            v0.from_list(points_matrix[i + 0][:3])
-            v1.from_list(points_matrix[i + 1][:3])
-            v2.from_list(points_matrix[i + 2][:3])
-
-            vn = cross(v2 - v0, v1 - v0)
-            vn.normalize()
-            triangles_normals.append(vn)
-
         points_matrix = np.transpose(np.array(points_matrix))
-
 
         model_matrix = GL.transform_stack.peek()
         transformed_points = np.matmul(model_matrix.to_list(), points_matrix)
+        
+        transformed_points = np.transpose(transformed_points)
+        triangles_normals = utils.get_triangles_normals(transformed_points)
+        transformed_points = np.transpose(transformed_points)
 
         viewpoint_matrix = GL.viewpoint_matrix
         projected_points = np.matmul(viewpoint_matrix.to_list(), transformed_points)
@@ -174,39 +160,42 @@ class GL:
         emissive_color = Vec3()
         diffuse_color = Vec3()
         specular_color = Vec3()
-        diffuse_factor = 0.0
+        ambient_factor = 0.0
         specular_factor = 0.0
         transparency = 0.0
 
         if not color_per_vertex and not texture_mapping:
             emissive_color.from_list(colors["emissiveColor"])
             diffuse_color.from_list(colors["diffuseColor"])
-            specular_color.from_list(colors["specularColor"]) 
-            diffuse_factor = colors["ambientIntensity"] if "ambientIntensity" in colors else 1.0
-            specular_factor = colors["shininess"] if "shininess" in colors else 0.0
+            specular_color.from_list(colors["specularColor"])
+            ambient_factor = colors["ambientIntensity"] if "ambientIntensity" in colors else 0.2
+            specular_factor = colors["shininess"] if "shininess" in colors else 0.2
             transparency = colors["transparency"] if "transparency" in colors else 0.0
 
         material = {
             "emissive_color": emissive_color,
             "diffuse_color": diffuse_color,
             "specular_color": specular_color,
-            "diffuse_factor": diffuse_factor,
+            "ambient_factor": ambient_factor,
             "specular_factor": specular_factor,
             "transparency": transparency
         }
 
+        # Triangles rasterization
         for i in range(0, len(point_list), 3):
             v0 = point_list[i + 0]
             v1 = point_list[i + 1]
             v2 = point_list[i + 2]
+
             z0 = z_list[i + 0]
             z1 = z_list[i + 1]
             z2 = z_list[i + 2]
 
-            vn = triangles_normals[i // 3] 
+            vn = triangles_normals[i // 3]
             
             if GL.debug_colors and not color_per_vertex and not texCoord:
                 material["emissive_color"] = Vec3(random.uniform(0.0, 1.0), random.uniform(0.0, 1.0), random.uniform(0.0, 1.0))
+                material["diffuse_color"] = Vec3(random.uniform(0.0, 1.0), random.uniform(0.0, 1.0), random.uniform(0.0, 1.0))
 
             triangle_aabb = AABB()
             triangle_aabb.create_from_triangle(v0, v1, v2)
@@ -226,6 +215,8 @@ class GL:
                         continue
                     
                     coefficients = utils.get_baricentric_coefficients(v0, v1, v2, point)
+                    point_x = 1.0 / (coefficients.x / v0.x + coefficients.y / v1.x + coefficients.z / v2.x)
+                    point_y = 1.0 / (coefficients.x / v0.y + coefficients.y / v1.y + coefficients.z / v2.y)
                     point_z = 1.0 / (coefficients.x / z0 + coefficients.y / z1 + coefficients.z / z2)
 
                     gpu.GPU.bind_framebuffer(gpu.GPU.FRAMEBUFFER, GL.depth_buffer)
@@ -259,7 +250,7 @@ class GL:
 
                             pixel_color = GL.target_texture.read_pixel(uv0 + uv1 + uv2)
                             pixel_color /= 255.0
-                        else:
+                        elif len(GL.lights) == 0:
                             pixel_color = material["emissive_color"]
                             transparency = material["transparency"]
                             if (transparency > 0.0):
@@ -269,36 +260,34 @@ class GL:
 
                                 pixel_color *= 1.0 - transparency
                                 pixel_color += last_pixel_color_transparent
-                        
-                        # Light calculation
-                        if len(GL.lights) > 0:
-                            material_diffuse_factor = material["diffuse_factor"]
+                        else:
+                            material_ambient_factor = material["ambient_factor"]
                             material_specular_factor = material["specular_factor"]
+                            material_emissive_color = material["emissive_color"]
                             material_diffuse_color = material["diffuse_color"]
                             material_specular_color = material["specular_color"]
+                            
+                            eye = Vec3(point_x, point_y, point_z)
+                            print(eye)
+                            eye.normalize()
 
+                            p = material_specular_factor * 128
                             for light in GL.lights:
                                 if light.is_directional:
-                                    l = light.direction
-                                    l.normalize()
-                                    _v = GL.camera_position - Vec3(point.x, point.y, point_z)
-                                    _v.normalize()
-                                    h = (_v + l) / (_v.length() + l.length())
-                                    h.normalize()
+                                    L = light.direction
+                                    L.normalize()
+                                    H = eye - L
+                                    H.normalize()
 
-                                    diffuse_coefficient = material_diffuse_factor * (light.intensity) * max(0, dot(vn, l))
-                                    specular_coefficient = material_specular_factor * (light.intensity) * max(0, dot(vn, h))**GL.specular_exponent 
-
-                                    pixel_diffuse_color = Vec3(
-                                        diffuse_coefficient * light.color.x * material_diffuse_color.x,
-                                        diffuse_coefficient * light.color.y * material_diffuse_color.y,
-                                        diffuse_coefficient * light.color.z * material_diffuse_color.z,
-                                    )
-
-                                    pixel_specular_color = material_specular_color * specular_coefficient  
-
-                                    pixel_color += pixel_diffuse_color + pixel_specular_color + GL.ambient_light 
-
+                                    pixel_ambient_color = material_diffuse_color * light.ambient_intensity * material_ambient_factor
+                                    pixel_diffuse_color = material_diffuse_color * light.intensity * max(0.0, dot(vn, light.direction)) 
+                                    
+                                    pixel_specular_color = Vec3()
+                                    if dot(vn, L) > 0.0:
+                                        pixel_specular_color = material_specular_color * light.intensity * max(0.0, dot(vn, H))**0.002
+                                    
+                                    pixel_color += material_emissive_color + (light.color * (pixel_ambient_color + pixel_diffuse_color + pixel_specular_color))
+                            
                         pixel_color *= 255.0
                         gpu.GPU.draw_pixel(point.to_list(), gpu.GPU.RGB8, np.clip(pixel_color.to_list(), 0.0, 255.0))
                     gpu.GPU.bind_framebuffer(gpu.GPU.FRAMEBUFFER, GL.draw_buffer) 
@@ -590,7 +579,7 @@ class GL:
         if headlight:
             light_direction = Vec3(0, 0, -1)
             light_color = Vec3(1, 1, 1)
-            head_light = Light(is_directional = True, direction = light_direction, color = light_color, intensity = 1)
+            head_light = Light(is_directional = True, direction = light_direction, color = light_color)
 
             GL.lights.append(head_light)
 
@@ -606,7 +595,7 @@ class GL:
 
         light_color.from_list(color)
 
-        directional_light = Light(is_directional = True, direction = light_direction, color = light_color, intensity = intensity)
+        directional_light = Light(is_directional = True, direction = light_direction, color = light_color, intensity = intensity, ambient_intensity = ambientIntensity)
         GL.lights.append(directional_light)
 
     @staticmethod

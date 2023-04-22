@@ -53,6 +53,8 @@ class Vec3:
     def __mul__(self, b):
         if isinstance(b, int) or isinstance(b, float):
             return Vec3(self.x * b, self.y * b, self.z * b)
+        elif isinstance(b, Vec3):
+            return Vec3(self.x * b.x, self.y * b.y, self.z * b.z)
         else:
             raise NotImplementedError
     
@@ -67,6 +69,9 @@ class Vec3:
     
     def normalize(self):
         length = self.length()
+        if length == 0.0:
+            return
+
         self.x /= length
         self.y /= length
         self.z /= length

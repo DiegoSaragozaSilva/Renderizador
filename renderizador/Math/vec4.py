@@ -58,6 +58,8 @@ class Vec4:
     def __mul__(self, b):
         if isinstance(b, int) or isinstance(b, float):
             return Vec4(self.x * b, self.y * b, self.z * b, self.w * b)
+        elif isinstance(b, Vec4):
+            return Vec4(self.x * b.x, self.y * b.y, self.z * b.z, self.w * b.w)
         else:
             raise NotImplementedError
     
@@ -72,6 +74,9 @@ class Vec4:
     
     def normalize(self):
         length = self.length()
+        if length == 0.0:
+            return
+
         self.x /= length
         self.y /= length
         self.z /= length

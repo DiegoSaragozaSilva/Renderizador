@@ -106,7 +106,6 @@ class GL:
             # Find the triangle AABB
             triangle_aabb = AABB()
             triangle_aabb.create_from_triangle(v0, v1, v2)
-            print(triangle_aabb.min, triangle_aabb.max)
             
             # Fill the triangle
             for v in range(int(triangle_aabb.min.y), int(triangle_aabb.max.y)):
@@ -267,24 +266,17 @@ class GL:
                             material_diffuse_color = material["diffuse_color"]
                             material_specular_color = material["specular_color"]
                             
-                            eye = Vec3(point_x, point_y, point_z)
-                            print(eye)
+                            eye = GL.camera_position - Vec3(point_x, point_y, point_z)
                             eye.normalize()
 
                             p = material_specular_factor * 128
                             for light in GL.lights:
                                 if light.is_directional:
-                                    L = light.direction
-                                    L.normalize()
-                                    H = eye - L
-                                    H.normalize()
+                                    H = (light.direction * -1.0) - vn * 2.0 * dot(vn, (light.direction * -1.0))
 
                                     pixel_ambient_color = material_diffuse_color * light.ambient_intensity * material_ambient_factor
                                     pixel_diffuse_color = material_diffuse_color * light.intensity * max(0.0, dot(vn, light.direction)) 
-                                    
-                                    pixel_specular_color = Vec3()
-                                    if dot(vn, L) > 0.0:
-                                        pixel_specular_color = material_specular_color * light.intensity * max(0.0, dot(vn, H))**0.002
+                                    pixel_specular_color = material_specular_color * light.intensity * max(0.0, dot(eye, H))**p
                                     
                                     pixel_color += material_emissive_color + (light.color * (pixel_ambient_color + pixel_diffuse_color + pixel_specular_color))
                             
@@ -495,11 +487,6 @@ class GL:
     @staticmethod
     def sphere(radius, colors):
         """Função usada para renderizar Esferas."""
-        # A função sphere é usada para desenhar esferas na cena. O esfera é centrada no
-        # (0, 0, 0) no sistema de coordenadas local. O argumento radius especifica o
-        # raio da esfera que está sendo criada. Para desenha essa esfera você vai
-        # precisar tesselar ela em triângulos, para isso encontre os vértices e defina
-        # os triângulos.
 
         ico_radius = (1.0 + np.sqrt(5.0)) / 2.0
         ico_vertices = [
@@ -631,21 +618,7 @@ class GL:
     @staticmethod
     def timeSensor(cycleInterval, loop):
         """Gera eventos conforme o tempo passa."""
-        # Os nós TimeSensor podem ser usados para muitas finalidades, incluindo:
-        # Condução de simulações e animações contínuas; Controlar atividades periódicas;
-        # iniciar eventos de ocorrência única, como um despertador;
-        # Se, no final de um ciclo, o valor do loop for FALSE, a execução é encerrada.
-        # Por outro lado, se o loop for TRUE no final de um ciclo, um nó dependente do
-        # tempo continua a execução no próximo ciclo. O ciclo de um nó TimeSensor dura
-        # cycleInterval segundos. O valor de cycleInterval deve ser maior que zero.
 
-        # Deve retornar a fração de tempo passada em fraction_changed
-
-        # O print abaixo é só para vocês verificarem o funcionamento, DEVE SER REMOVIDO.
-        print("TimeSensor : cycleInterval = {0}".format(cycleInterval)) # imprime no terminal
-        print("TimeSensor : loop = {0}".format(loop))
-
-        # Esse método já está implementado para os alunos como exemplo
         epoch = time.time()  # time in seconds since the epoch as a floating point number.
         fraction_changed = (epoch % cycleInterval) / cycleInterval
 
@@ -654,48 +627,64 @@ class GL:
     @staticmethod
     def splinePositionInterpolator(set_fraction, key, keyValue, closed):
         """Interpola não linearmente entre uma lista de vetores 3D."""
-        # Interpola não linearmente entre uma lista de vetores 3D. O campo keyValue possui
-        # uma lista com os valores a serem interpolados, key possui uma lista respectiva de chaves
-        # dos valores em keyValue, a fração a ser interpolada vem de set_fraction que varia de
-        # zeroa a um. O campo keyValue deve conter exatamente tantos vetores 3D quanto os
-        # quadros-chave no key. O campo closed especifica se o interpolador deve tratar a malha
-        # como fechada, com uma transições da última chave para a primeira chave. Se os keyValues
-        # na primeira e na última chave não forem idênticos, o campo closed será ignorado.
 
-        # O print abaixo é só para vocês verificarem o funcionamento, DEVE SER REMOVIDO.
-        print("SplinePositionInterpolator : set_fraction = {0}".format(set_fraction))
-        print("SplinePositionInterpolator : key = {0}".format(key)) # imprime no terminal
-        print("SplinePositionInterpolator : keyValue = {0}".format(keyValue))
-        print("SplinePositionInterpolator : closed = {0}".format(closed))
+        first_index     = int(set_fraction / (key[1] - key[0]))
+        second_index    = (first_index + 1) % len(key)
+        third_index     = (first_index + 2) % len(key)
+        fourth_index    = (first_index + 3) % len(key)
+        t = set_fraction / 0.2 % 1
 
-        # Abaixo está só um exemplo de como os dados podem ser calculados e transferidos
-        value_changed = [0.0, 0.0, 0.0]
+        t_values            = np.array([t**3, t**2, t, 1.0])
+        curve_space_matrix  = np.array([[ 0.5,  1.5, -1.5,  0.5],
+                                        [ 0. , -2.5,  2. , -0.5],
+                                        [-0.5,  0. ,  0.5,  0. ],
+                                        [ 0. ,  1. ,  0. ,  0. ]])
         
-        return value_changed
+        p0 = keyValue[first_index * 3   : first_index * 3 + 3]
+        p1 = keyValue[second_index * 3  : second_index * 3 + 3]
+        p2 = keyValue[third_index * 3   : third_index * 3 + 3]
+        p3 = keyValue[fourth_index * 3  : fourth_index * 3 + 3]
+        x_values = np.transpose(np.array([p0[0], p1[0], p2[0], p3[0]]))
+        y_values = np.transpose(np.array([p0[1], p1[1], p2[1], p3[1]]))
+        z_values = np.transpose(np.array([p0[2], p1[2], p2[2], p3[2]]))
+
+        x = np.matmul(t_values, np.matmul(curve_space_matrix, x_values))
+        y = np.matmul(t_values, np.matmul(curve_space_matrix, y_values))
+        z = np.matmul(t_values, np.matmul(curve_space_matrix, z_values))
+
+        return [x, y, z]
 
     @staticmethod
     def orientationInterpolator(set_fraction, key, keyValue):
         """Interpola entre uma lista de valores de rotação especificos."""
-        # Interpola rotações são absolutas no espaço do objeto e, portanto, não são cumulativas.
-        # Uma orientação representa a posição final de um objeto após a aplicação de uma rotação.
-        # Um OrientationInterpolator interpola entre duas orientações calculando o caminho mais
-        # curto na esfera unitária entre as duas orientações. A interpolação é linear em
-        # comprimento de arco ao longo deste caminho. Os resultados são indefinidos se as duas
-        # orientações forem diagonalmente opostas. O campo keyValue possui uma lista com os
-        # valores a serem interpolados, key possui uma lista respectiva de chaves
-        # dos valores em keyValue, a fração a ser interpolada vem de set_fraction que varia de
-        # zeroa a um. O campo keyValue deve conter exatamente tantas rotações 3D quanto os
-        # quadros-chave no key.
 
-        # O print abaixo é só para vocês verificarem o funcionamento, DEVE SER REMOVIDO.
-        print("OrientationInterpolator : set_fraction = {0}".format(set_fraction))
-        print("OrientationInterpolator : key = {0}".format(key)) # imprime no terminal
-        print("OrientationInterpolator : keyValue = {0}".format(keyValue))
+        first_index     = int(set_fraction / (key[1] - key[0]))
+        second_index    = (first_index + 1) % len(key)
+        third_index     = (first_index + 2) % len(key)
+        fourth_index    = (first_index + 3) % len(key)
+        t = set_fraction / 0.2 % 1
 
-        # Abaixo está só um exemplo de como os dados podem ser calculados e transferidos
-        value_changed = [0, 0, 1, 0]
+        t_values            = np.array([t**3, t**2, t, 1.0])
+        curve_space_matrix  = np.array([[ 0.5,  1.5, -1.5,  0.5],
+                                        [ 0. , -2.5,  2. , -0.5],
+                                        [-0.5,  0. ,  0.5,  0. ],
+                                        [ 0. ,  1. ,  0. ,  0. ]])
+        
+        p0 = keyValue[first_index * 4   : first_index * 4 + 4]
+        p1 = keyValue[second_index * 4  : second_index * 4 + 4]
+        p2 = keyValue[third_index * 4   : third_index * 4 + 4]
+        p3 = keyValue[fourth_index * 4  : fourth_index * 4 + 4]
+        x_values = np.transpose(np.array([p0[0], p1[0], p2[0], p3[0]]))
+        y_values = np.transpose(np.array([p0[1], p1[1], p2[1], p3[1]]))
+        z_values = np.transpose(np.array([p0[2], p1[2], p2[2], p3[2]]))
+        w_values = np.transpose(np.array([p0[3], p1[3], p2[3], p3[3]]))
 
-        return value_changed
+        x = np.matmul(t_values, np.matmul(curve_space_matrix, x_values))
+        y = np.matmul(t_values, np.matmul(curve_space_matrix, y_values))
+        z = np.matmul(t_values, np.matmul(curve_space_matrix, z_values))
+        w = np.matmul(t_values, np.matmul(curve_space_matrix, w_values))
+
+        return [x, y, z, w]
 
     # Para o futuro (Não para versão atual do projeto.)
     def vertex_shader(self, shader):

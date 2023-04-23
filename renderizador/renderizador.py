@@ -43,12 +43,13 @@ class Renderizador:
         # Configurando color buffers para exibição na tela
 
         # Cria uma (1) posição de FrameBuffer na GPU
-        fbo = gpu.GPU.gen_framebuffers(3)
+        fbo = gpu.GPU.gen_framebuffers(4)
 
         # Define o atributo FRONT como o FrameBuffe principal
         self.framebuffers["FRONT"] = fbo[0]
-        self.framebuffers["SSAA"] = fbo[1]
-        self.framebuffers["DEPTH"] = fbo[2]
+        self.framebuffers["BACK"] = fbo[1]
+        self.framebuffers["SSAA"] = fbo[2]
+        self.framebuffers["DEPTH"] = fbo[3]
 
         # Opções:
         # - DRAW_FRAMEBUFFER: Faz o bind só para escrever no framebuffer
@@ -60,6 +61,14 @@ class Renderizador:
         # Memória de Framebuffer para canal de cores
         gpu.GPU.framebuffer_storage(
             self.framebuffers["FRONT"],
+            gpu.GPU.COLOR_ATTACHMENT,
+            gpu.GPU.RGB8,
+            self.width,
+            self.height
+        )
+
+        gpu.GPU.framebuffer_storage(
+            self.framebuffers["BACK"],
             gpu.GPU.COLOR_ATTACHMENT,
             gpu.GPU.RGB8,
             self.width,
@@ -153,8 +162,6 @@ class Renderizador:
                             colors.append(gpu.GPU.read_pixel([i + u, j + v], gpu.GPU.RGB8) * meanFactor)
                     averageColor = [sum(c) for c in zip(*colors)]
                     gpu.GPU.draw_pixel([i // self.samplingLevel, j // self.samplingLevel], gpu.GPU.RGB8, averageColor)
-
-            gpu.GPU.bind_framebuffer(gpu.GPU.READ_FRAMEBUFFER, self.framebuffers["FRONT"])
         
         # Método para a troca dos buffers (NÃO IMPLEMENTADO)
         gpu.GPU.swap_buffers()

@@ -5,7 +5,7 @@
     <Viewpoint position="0 0 10"/>
     <NavigationInfo headlight='false'/>
     
-    <DirectionalLight direction="0 0 -1"/>
+    <DirectionalLight direction="0.577 -0.577 -0.577"/>
     
     <Transform translation="-2 0 0">
       <Shape>

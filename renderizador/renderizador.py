@@ -137,6 +137,9 @@ class Renderizador:
         # Função invocada antes do processo de renderização iniciar.
 
         # Limpa o frame buffers atual
+        gpu.GPU.bind_framebuffer(gpu.GPU.FRAMEBUFFER, self.framebuffers["FRONT"])
+        gpu.GPU.clear_buffer()
+        gpu.GPU.bind_framebuffer(gpu.GPU.FRAMEBUFFER, self.framebuffers["DEPTH"])
         gpu.GPU.clear_buffer()
 
         if (self.supersampling):
@@ -162,9 +165,11 @@ class Renderizador:
                             colors.append(gpu.GPU.read_pixel([i + u, j + v], gpu.GPU.RGB8) * meanFactor)
                     averageColor = [sum(c) for c in zip(*colors)]
                     gpu.GPU.draw_pixel([i // self.samplingLevel, j // self.samplingLevel], gpu.GPU.RGB8, averageColor)
-        
+
         # Método para a troca dos buffers (NÃO IMPLEMENTADO)
         gpu.GPU.swap_buffers()
+
+        gl.GL.lights = []
 
     def mapping(self):
         """Mapeamento de funções para as rotinas de renderização."""
